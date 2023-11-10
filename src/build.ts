@@ -5,8 +5,8 @@ import Package from "./types/Package";
 export default async function build(packages: Package[]) {
   if (packages.length === 0) {
     return console.log(
-      colors.bold.redBright("packages key is empty in builder.json file, ") +
-        colors.yellow("Nothing to build, exiting...")
+      colors.redBright("packages key is empty in builder.json file, ") +
+        colors.yellow("Nothing to build, exiting..."),
     );
   }
 

@@ -1,7 +1,9 @@
 import fs from "@flk/fs";
+import { removeDirectory } from "@mongez/fs";
 import * as path from "path";
 import print, { colors } from "./cli";
 import compile from "./compile";
+import { copyDirectoryExcept } from "./copy-directory-except";
 import incrementVersion from "./increment-version";
 import markPackageAsDone from "./mark-package-as-done";
 import PackageManager, { newPackageManager } from "./package-manager";
@@ -10,9 +12,6 @@ import publish from "./publish";
 import publishToGit from "./publish-to-git";
 import Package from "./types/Package";
 import updateGitIgnore from "./update-git-ignore";
-import { copyDirectory } from "@mongez/fs";
-import chalk from "chalk";
-import { copyDirectoryExcept } from "./copy-directory-except";
 
 function getNewVersion(packageData, packageJson) {
   let version = packageData.version;
@@ -28,9 +27,9 @@ function getNewVersion(packageData, packageJson) {
 function prepareBuildPath(
   packageName: string,
   newVersion: string,
-  packageJsonContent: object
+  packageJsonContent: object,
 ): string {
-  const buildPath = root("builds", packageName, newVersion);
+  const buildPath = root("../", "builds", packageName, newVersion);
   if (!fs.isDirectory(buildPath)) {
     fs.makeDirectory(buildPath);
   }
@@ -38,44 +37,40 @@ function prepareBuildPath(
   return buildPath;
 }
 
-function cloneSource(
-  packageData: Package,
-  newVersion: string,
-  packageJsonContent: object
-): string {
+function cloneSource(packageData: Package, newVersion: string): string {
   const packageName: string = packageData.name;
-  const segments = ["sources", packageName, newVersion];
+  const segments = ["../", "sources", packageName, newVersion];
 
   const sourcePath = root(...segments);
   //   const packageJsonPath = root(...segments, "package.json");
 
   //   packageJsonContent["version"] = newVersion;
 
-  if (!fs.isDirectory(sourcePath)) {
-    fs.makeDirectory(sourcePath);
-  }
+  removeDirectory(sourcePath);
+  fs.makeDirectory(sourcePath);
 
   //   packageJsonContent["sideEffects"] = false; // for tree-shaking and webpack
 
   //   fs.putJson(packageJsonPath, packageJsonContent);
 
-  console.log(chalk.magenta("Making a backup copy for source code."));
+  console.log(colors.magenta("Making a backup copy for source code."));
 
   copyDirectoryExcept(root(packageData.root), sourcePath, ["./node_modules"]);
-  console.log(chalk.green("Backup has been completed successfully."));
+  console.log(colors.green("Backup has been completed successfully."));
 
   return sourcePath;
 }
 
 function updatePackageJson(
   packageManager: PackageManager,
-  packageData: Package
+  packageData: Package,
 ): void {
   const packageJsonPath = root(
+    "../",
     "builds",
     packageData.name,
     packageManager.get("version"),
-    "package.json"
+    "package.json",
   );
 
   print(colors.cyanBright("Updating Package.json..."));
@@ -85,35 +80,56 @@ function updatePackageJson(
   }
 
   packageManager.saveTo(packageJsonPath);
+
+  const mainFile = Array.isArray(packageData.entries)
+    ? packageData.entries[0]
+    : packageData.entries;
+
+  const mainFileType = packageData.mainType || "cjs";
+
+  if (mainFileType === "esm") {
+    packageManager.set("type", "module");
+  }
+
+  const jsFileName = mainFile?.replace("ts", "js");
+
+  packageManager.set({
+    module: `./esm/${jsFileName}`,
+    main: `./${mainFileType}/${jsFileName}`,
+    // type: mainFileType === "esm" ? "module" : "commonjs",
+    typings: `./${mainFileType}/${mainFile
+      ?.replace(".tsx", ".d.tsx")
+      .replace(".ts", ".d.ts")}`,
+  });
 }
 
 export default async function buildPackage(
   index: number,
-  packageData: Package
+  packageData: Package,
 ): Promise<any> {
   //
   if (!packageData.packageJsonPath) {
     packageData.packageJsonPath = path.resolve(
       packageData.root,
-      "package.json"
+      "package.json",
     );
   }
 
   if (!fs.isDirectory(root(packageData.root))) {
     return print(
-      `Can not find package root directory: ${root(packageData.root)}.`
+      `Can not find package root directory: ${root(packageData.root)}.`,
     );
   }
 
   packageData.hasRepository = fs.isDirectory(
-    path.resolve(packageData.root, ".git")
+    path.resolve(packageData.root, ".git"),
   );
 
   if (packageData.hasRepository && !packageData.commit) {
     return print(
-      colors.redBright.bold(
-        `Can not make a new version without making a commit in the package object in builder.json file.`
-      )
+      colors.redBright(
+        `Can not make a new version without making a commit in the package object in builder.json file.`,
+      ),
     );
   }
 
@@ -133,8 +149,8 @@ export default async function buildPackage(
   print(
     colors.cyan("Building") +
       " " +
-      colors.bold.cyan(packageData.name) +
-      ` ${colors.yellow.bold("v" + newVersion)}`
+      colors.cyan(packageData.name) +
+      ` ${colors.yellow("v" + newVersion)}`,
   );
 
   if (!packageData.entries) {
@@ -154,19 +170,16 @@ export default async function buildPackage(
 
   if (packageData.cloneSource !== false) {
     // clone the source code into the sources directory
-    packageData.newSourcePath = cloneSource(
-      packageData,
-      newVersion,
-      packageJson
-    );
+    packageData.newSourcePath = cloneSource(packageData, newVersion);
   }
+
   console.log("Compiling...");
 
   // create the build path and return it
   const buildPath = prepareBuildPath(
     packageData.name,
     newVersion,
-    packageJson
+    packageJson,
   ).replace(/\\/g, "/");
 
   packageData.buildPath = buildPath;
@@ -174,7 +187,21 @@ export default async function buildPackage(
   packageData.packageManager = packageManager;
 
   // compile the package
-  compile(packageData, buildPath);
+  await compile(packageData, buildPath);
+
+  // check if there is any clones
+  if (packageData.clone) {
+    for (let cloningPath of packageData.clone) {
+      let cloneTo = cloningPath;
+      if (Array.isArray(cloningPath)) {
+        cloneTo = cloningPath[1];
+        cloningPath = cloningPath[0];
+      }
+
+      const fullPath = path.resolve(packageData.root, cloningPath);
+      fs.copy(fullPath, path.resolve(buildPath, cloneTo));
+    }
+  }
 
   updateGitIgnore(buildPath);
 
@@ -204,8 +231,8 @@ export default async function buildPackage(
   print(
     colors.greenBright(
       `${packageData.name}@${packageManager.get(
-        "version"
-      )} has been published successfully.`
-    )
+        "version",
+      )} has been published successfully.`,
+    ),
   );
 }

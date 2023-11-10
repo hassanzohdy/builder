@@ -4,12 +4,12 @@ import formatCode from "./formatCode";
 import { builderPath } from "./paths";
 import Package from "./types/Package";
 
-export default function markPackageAsDone(packageName: string): void {
+export default async function markPackageAsDone(packageName: string) {
   const builderContent = fs.getJson(builderPath());
   const packages = builderContent["build"] as string[];
 
   const packageData: Package = builderContent["packages"].find(
-    (packageData: Package) => packageData.name === packageName
+    (packageData: Package) => packageData.name === packageName,
   );
 
   if (packageData.commit) {
@@ -24,7 +24,7 @@ export default function markPackageAsDone(packageName: string): void {
 
   packages.splice(packageIndex, 1);
 
-  fs.put(builderPath(), formatCode(JSON.stringify(builderContent), "json"));
+  fs.put(builderPath(), await formatCode(JSON.stringify(builderContent), "json"));
 
   print(colors.yellow("Package Is cleared from builder"));
 }

@@ -3,7 +3,7 @@ import print, { colors } from "./cli";
 
 export default function exec(...params: any[]): any {
   print(
-    `Executing command: ${colors.bold(params[0] + " " + params[1].join(" "))}`
+    `Executing command: ${colors.bold(params[0] + " " + params[1].join(" "))}`,
   );
 
   let command = childProcess.sync(...params);

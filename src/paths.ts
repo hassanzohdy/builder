@@ -1,7 +1,7 @@
 import path from "path";
 
 export function root(...morePaths: string[]) {
-  return path.join(__dirname, "../", ...morePaths);
+  return path.resolve(process.cwd(), ...morePaths);
 }
 
 export function builderPath(): string {

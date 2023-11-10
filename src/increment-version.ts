@@ -13,11 +13,11 @@ function totalDots(string: string): number {
  */
 export default function incrementVersion(
   version: string,
-  mode: VersionUpdateMode = "patch"
+  mode: VersionUpdateMode = "patch",
 ): string {
   if (totalDots(version) > 3) {
     throw new Error(
-      `Version schema must be major.minor.patch schema i.e 1.0.0 provided version: ${version}`
+      `Version schema must be major.minor.patch schema i.e 1.0.0 provided version: ${version}`,
     );
   }
 

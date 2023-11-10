@@ -4,7 +4,7 @@ import path from "path";
 export function copyDirectoryExcept(
   source: string,
   destination: string,
-  exceptPaths: string[]
+  exceptPaths: string[],
 ) {
   try {
     // Check if source and destination exist
@@ -18,9 +18,7 @@ export function copyDirectoryExcept(
     // Get list of files and directories in source directory
     const files = fs.readdirSync(source);
 
-    exceptPaths = exceptPaths.map((exceptPath) =>
-      path.join(source, exceptPath)
-    );
+    exceptPaths = exceptPaths.map(exceptPath => path.join(source, exceptPath));
 
     // Loop through files and directories
     for (const file of files) {

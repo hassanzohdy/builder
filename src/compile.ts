@@ -2,7 +2,6 @@ import fs from "@flk/fs";
 import * as path from "path";
 import print, { colors } from "./cli";
 import exec from "./exec";
-import { currentPackageManager } from "./package-manager";
 import { clonable, root } from "./paths";
 import Package from "./types/Package";
 
@@ -13,51 +12,16 @@ function compileRollup(buildPath: string, packageData: Package): void {
 
   compileRollupFormat(rootPath, buildPath, packageData, "esm");
   compileRollupFormat(rootPath, buildPath, packageData, "cjs");
-
-  const mainFile = Array.isArray(packageData.entries)
-    ? packageData.entries[0]
-    : packageData.entries;
-
-  const jsFileName = mainFile?.replace("ts", "js");
-
-  const mainFileType = packageData.mainType || "cjs";
-
-  currentPackageManager().set({
-    module: `./esm/${jsFileName}`,
-    main: `./${mainFileType}/${jsFileName}`,
-    // type: mainFileType === "esm" ? "module" : "commonjs",
-    typings: `./${mainFileType}/${mainFile
-      ?.replace(".tsx", ".d.tsx")
-      .replace(".ts", ".d.ts")}`,
-  });
-
-  if (mainFileType === "esm") {
-    currentPackageManager().set("type", "module");
-  }
-
-  // check if there is any clones
-  if (packageData.clone) {
-    for (let cloningPath of packageData.clone) {
-      let cloneTo = cloningPath;
-      if (Array.isArray(cloningPath)) {
-        cloneTo = cloningPath[1];
-        cloningPath = cloningPath[0];
-      }
-
-      const fullPath = path.resolve(packageData.root, cloningPath);
-      fs.copy(fullPath, path.resolve(buildPath, cloneTo));
-    }
-  }
 }
 
 function compileRollupFormat(
   rootPath: string,
   buildPath: string,
   packageData: Package,
-  format: string
+  format: string,
 ): void {
   print(
-    colors.yellowBright(`Bundling With Rollup ${colors.bold.yellow(format)}...`)
+    colors.yellowBright(`Bundling With Rollup ${colors.yellow(format)}...`),
   );
 
   buildPath += "/" + format;
@@ -90,7 +54,7 @@ function compileRollupFormat(
 
   if (Array.isArray(packageData.entries)) {
     const entries: string[] = [];
-    packageData.entries.forEach((entry) => {
+    packageData.entries.forEach(entry => {
       entries.push(rootApp + "/" + entry);
     });
 
@@ -98,7 +62,7 @@ function compileRollupFormat(
   } else {
     content = content.replace(
       "ROOT_FILE_PATH",
-      `"${rootApp + "/" + packageData.entries}"`
+      `"${rootApp + "/" + packageData.entries}"`,
     );
   }
 
@@ -121,6 +85,6 @@ function compileRollupFormat(
   });
 }
 
-export default function compile(packageData: Package, buildPath: string): void {
+export default async function compile(packageData: Package, buildPath: string) {
   compileRollup(buildPath, packageData);
 }
